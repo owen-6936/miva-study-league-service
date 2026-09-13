@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "tsc && node ./dist/app.js",
+    "start": "node ./dist/app.js",
     "dev": "tsc && nodemon ./dist/app.js",
     "lint": "eslint . --ext .ts",
     "type-check": "tsc --noEmit"
