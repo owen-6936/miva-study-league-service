@@ -60,7 +60,7 @@ const getVerificationEmailTemplate = (name: string, verificationCode: string) =>
 };
 
 const verificationEmailSubject = 'Verify Your Email Address';
-const verificationEmailFrom = 'MIVA Study League <noreply.mivastudyleague.org>';
+const verificationEmailFrom = 'MIVA Study League <noreply@mivastudyleague.org>';
 
 export default getVerificationEmailTemplate;
 export { verificationEmailSubject, verificationEmailFrom };
