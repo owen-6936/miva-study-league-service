@@ -8,9 +8,9 @@ A backend service for the Miva Study League application, built with Express.js, 
 - **User Management:** Profile and statistics management.
 - **Team Management:** Create, update, and manage team members and team scores.
 - **Missions & Activities:** APIs to handle daily/weekly tasks and log user activities.
+- **Timetable Management:** Create, view, update, and delete class/study schedules.
 - **Leaderboards & Seasons:** Track team and individual progress across structured seasons.
 - **Email Services:** Integrated with Resend for transactional emails (e.g., email verification).
-- **Comprehensive API Documentation:** Automatically generated HTML documentation for all source modules using TypeDoc.
 
 ## Tech Stack
 
@@ -74,13 +74,7 @@ pnpm run start
 
 ## Documentation
 
-The project includes thorough, auto-generated JSDoc documentation via TypeDoc.
-
-To generate or update the documentation, run:
-```bash
-npx typedoc
-```
-You can view the documentation by opening `docs/index.html` in your browser.
+The project includes thorough, inline JSDoc comments describing the business logic, parameters, and utilities directly in the source code.
 
 ## License
 

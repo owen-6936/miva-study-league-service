@@ -2,6 +2,7 @@ import express, {type Express} from 'express';
 import teamRouter from './routers/teams.router.js';
 import leaderboardRouter from './routers/leaderboard.router.js';
 import seasonsRouter from './routers/seasons.router.js';
+import timetableRouter from './routers/timetable.router.js';
 import cookieParser from 'cookie-parser';
 import logger from 'morgan';
 import cors from 'cors';
@@ -43,6 +44,7 @@ app.use('/api/v1/leaderboard', leaderboardRouter);
 app.use('/api/v1/missions', missionsRouter);
 app.use('/api/v1/activities', activitiesRouter);
 app.use('/api/v1/seasons', seasonsRouter);
+app.use('/api/v1/timetable', timetableRouter);
 
 // Start the server and listen on the specified port
 const port = process.env.PORT || 3000;

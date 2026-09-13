@@ -8,6 +8,8 @@ import type Mission from './schemas/missions.js';
 import type { IMission } from './schemas/missions.js';
 import type { ISeason } from './schemas/seasons.js';
 import Season from './schemas/seasons.js';
+import type { ITimetableEntry } from './schemas/timetable.js';
+import type TimetableEntry from './schemas/timetable.js';
 
 /**
  * Sets the DNS servers to the specified provider.
@@ -140,6 +142,22 @@ function sanitizeSeason(season: InstanceType<typeof Season> | InstanceType<typeo
 }
 
 /**
+ * Standardizes the TimetableEntry document for API responses, removing internal fields.
+ */
+function sanitizeTimetableEntry(entry: InstanceType<typeof TimetableEntry> | InstanceType<typeof TimetableEntry>[]): ITimetableEntry | ITimetableEntry[] {
+    if (Array.isArray(entry)) {
+        return entry.map(e => sanitizeTimetableEntry(e)) as ITimetableEntry[];
+    }
+
+    const { _id, __v, ...safeEntry } = entry.toObject();
+    
+    return {
+        ...safeEntry,
+        id: _id
+    };
+}
+
+/**
  * Merges a user's mission progress (e.g. tasks completed) with the full mission data from the database.
  * Useful for building a comprehensive dashboard view for a user.
  * 
@@ -174,4 +192,4 @@ function getUserCompletedMissions(user: IUser, pastMissions: IMission[]): (IMiss
     return getUserMissions(user, pastMissions).filter(mission => mission.tasksCompleted === mission.tasksTotal);
 }
 
-export { setDNS, hashPassword, verifyPassword, generateVerificationCode, sanitizeUser, sanitizeTeam, sanitizeMission, getUserMissions, getUserPastMissions, getUserCompletedMissions, sanitizeSeason };
+export { setDNS, hashPassword, verifyPassword, generateVerificationCode, sanitizeUser, sanitizeTeam, sanitizeMission, getUserMissions, getUserPastMissions, getUserCompletedMissions, sanitizeSeason, sanitizeTimetableEntry };
