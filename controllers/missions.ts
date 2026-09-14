@@ -63,6 +63,23 @@ export async function createMission(req: Request, res: Response) {
     }
 }
 
+export async function updateMission(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+
+        const updatedMission = await Mission.findByIdAndUpdate(id, updateData, { new: true });
+        if (!updatedMission) {
+            return res.status(404).json({ message: 'Mission not found' });
+        }
+
+        logActivity('MISSION_UPDATED', `Mission updated: "${updatedMission.title}"`);
+        return res.status(200).json({ message: 'Mission updated successfully', mission: sanitizeMission(updatedMission) });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error updating mission', error });
+    }
+}
+
 /**
  * Controller function for deleting a mission by ID.
  */
@@ -216,6 +233,7 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
                 newlyCompleted = true;
                 
                 bonusPoints += mission.basePoints;
+                logActivity('MISSION_COMPLETED', `${user.name}, Completed mission: ${mission.title} and earned bonus points! Total bonus: ${bonusPoints}`);
 
                 const completorsCount = await User.countDocuments({
                     'userMissions': { 
@@ -246,5 +264,138 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
 
     } catch (error) {
         next(error);
+    }
+};
+
+// ==========================================
+// 1. GET /missions/submissions
+// ==========================================
+export const getSubmissionsQueue = async (req: Request, res: Response) => {
+    try {
+        // Find users who have at least one un-graded task inside their userMissions
+        const users = await User.find({
+            'userMissions.taskSubmissions.graded': false
+        }).populate('userMissions.missionId'); 
+
+        const submissionsQueue: Array<{
+            id: string; // The composite string ID
+            userId: {
+                id: Types.ObjectId;
+                fullName: string | undefined;
+                teamId: string | null;
+            };
+            missionId: unknown; // Using 'any' here handles Mongoose populated documents safely
+            status: string;
+            taskSubmissions: Array<{
+                taskId: string;
+                content: string;
+                score: number;
+                status: string;
+            }>;
+            createdAt: Date | undefined;
+        }> = [];
+
+        users.forEach(user => {
+            user.userMissions?.forEach(um => {
+                const hasPendingTasks = um.taskSubmissions.some(t => !t.graded);
+                
+                if (hasPendingTasks && um.missionId) {
+                    
+                    // Safely extract the mission ID string whether it's populated or not
+                    const missionObjectId = (um.missionId as unknown as { _id: string })._id || um.missionId;
+                    
+                    submissionsQueue.push({
+                        id: `${user._id}_${missionObjectId}`, 
+                        userId: { 
+                            id: user._id, 
+                            fullName: user.name, 
+                            teamId: user.teamId ? user.teamId.toString() : null 
+                        },
+                        missionId: um.missionId, 
+                        status: 'pending_review',
+                        taskSubmissions: um.taskSubmissions.map(t => ({
+                            taskId: t.taskId,
+                            content: t.answer,             
+                            score: t.pointsEarned,         
+                            status: t.graded ? 'graded' : 'pending' 
+                        })),
+                        createdAt: user.createdAt
+                    });
+                }
+            });
+        });
+
+        return res.status(200).json({ 
+            submissions: submissionsQueue, 
+            message: 'Submissions fetched successfully' 
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error fetching review queue', error });
+    }
+};
+
+
+// ==========================================
+// 2. POST /missions/submissions/:id/grade/:taskId
+// ==========================================
+export const gradeTaskSubmission = async (req: Request, res: Response) => {
+    try {
+        const { id: rawId, taskId: rawTaskId } = req.params;
+        const { approved, pointsAwarded } = req.body as { approved: boolean; pointsAwarded: number };
+
+        const id = Array.isArray(rawId) ? rawId[0] : rawId;
+        const taskId = Array.isArray(rawTaskId) ? rawTaskId[0] : rawTaskId;
+
+        // Split the composite ID back into User ID and Mission ID
+        if (!id || !id.includes('_')) {
+            return res.status(400).json({ message: 'Invalid submission ID format' });
+        }
+        if (!taskId) {
+            return res.status(400).json({ message: 'Invalid task ID format' });
+        }
+        const [userId, missionId] = id.split('_');
+
+        if (!userId || !missionId) {
+            return res.status(400).json({ message: 'Invalid submission ID format' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const userMission = user.userMissions?.find(m => m.missionId.toString() === missionId);
+        if (!userMission) return res.status(404).json({ message: 'Mission progress not found' });
+        
+        const task = userMission.taskSubmissions.find(t => t.taskId === taskId);
+        if (!task) return res.status(404).json({ message: 'Task submission not found' });
+        
+        if (approved) {
+            task.graded = true;
+            task.pointsEarned = pointsAwarded;
+            
+            // Add the points to the user's global total!
+            user.points = (user.points || 0) + pointsAwarded; 
+        } else {
+            // Rejected! Completely delete their submission from the array 
+            // so they have to start over and submit again.
+            userMission.taskSubmissions = userMission.taskSubmissions.filter(
+                (t) => t.taskId !== taskId
+            );
+        }
+
+        // Check if ALL tasks in this mission are now graded
+        const allTasksGraded = userMission.taskSubmissions.every(t => t.graded);
+        if (allTasksGraded) {
+            userMission.completed = true;
+            userMission.completedAt = new Date();
+            
+            // 💰 TRIGGER YOUR LOOT ENGINE HERE! 
+            // Base XP, First Blood XP, Team Synergy XP logic goes here
+        }
+
+        await user.save();
+        return res.status(200).json({ message: 'Task graded successfully!' });
+
+    } catch (error) {
+        return res.status(500).json({ message: 'Error grading task', error });
     }
 };

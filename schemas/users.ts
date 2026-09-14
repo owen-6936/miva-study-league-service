@@ -4,7 +4,7 @@ import { Types } from 'mongoose';
 export interface IUser {
     id?: Types.ObjectId;
     _id: Types.ObjectId;
-    name?: string;
+    name: string;
     email: string;
     password?: string;
     refreshToken?: string;
@@ -12,8 +12,8 @@ export interface IUser {
     matricNumber?: string;
     role: 'student' | 'admin';
     team: 'Alpha' | 'Beta' | 'Gamma' | 'Delta' | 'Omega' | 'Sigma' | 'Zeta' | null;
-    teamId: string | null;
-    createdAt?: Date;
+    teamId: Types.ObjectId | null;
+    createdAt: Date;
     verified?: boolean;
     verificationToken?: string;
     points?: number;

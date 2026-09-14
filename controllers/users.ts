@@ -48,7 +48,7 @@ export async function stats(req: Request, res: Response, next: NextFunction) {
         const teams = await Team.find().sort({ score: -1 });
 
         // Find the user's team rank based on the sorted list of teams
-        const userTeamRank = teams.findIndex(team => team.id === user.teamId) + 1;
+        const userTeamRank = teams.findIndex(team => team.id === user.teamId?.toString()) + 1;
 
         // Example statistics calculation (replace with actual logic)
         const stats = {
