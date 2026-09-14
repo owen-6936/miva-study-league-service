@@ -1,3 +1,4 @@
+import type { IUser } from "../schemas/users.js";
 import {type Request, type Response, type NextFunction} from 'express';
 import User from '../schemas/users.js';
 import { sanitizeUser } from '../utils.js';
@@ -58,6 +59,67 @@ export async function stats(req: Request, res: Response, next: NextFunction) {
         };
 
         return res.status(200).json({ stats, message: 'User statistics retrieved successfully' });
+    } catch (error) {
+        next(error);
+    }
+}
+
+import { logActivity } from '../utils/logger.js';
+
+/**
+ * Controller for handling team transfers using a transfer token
+ */
+export async function transferTeam(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { newTeamId } = req.body;
+        
+        const user = (req as Request & { user: InstanceType<typeof User> }).user;
+        
+        if (!newTeamId) {
+            return res.status(400).json({ message: 'newTeamId is required' });
+        }
+        
+        if (!user.teamTransferTokens || user.teamTransferTokens <= 0) {
+            return res.status(403).json({ message: 'No transfer tokens available' });
+        }
+        
+        const newTeam = await Team.findById(newTeamId);
+        if (!newTeam) {
+            return res.status(404).json({ message: 'New team not found' });
+        }
+        
+        if (newTeam.members.length >= newTeam.maxMembers) {
+            return res.status(400).json({ message: 'The selected team is full' });
+        }
+        
+        let oldTeamName = 'None';
+        if (user.teamId) {
+            const oldTeam = await Team.findById(user.teamId);
+            if (oldTeam) {
+                oldTeamName = oldTeam.name;
+                oldTeam.members = oldTeam.members.filter(id => id.toString() !== user._id.toString());
+                
+                // Remove captain status if they were captain
+                if (oldTeam.captainId === user._id.toString()) {
+                    oldTeam.captainId = '';
+                }
+                await oldTeam.save();
+            }
+        }
+        
+        if (!newTeam.members.includes(user._id.toString())) {
+            newTeam.members.push(user._id.toString());
+        }
+        await newTeam.save();
+        
+        user.teamId = newTeam._id;
+        user.team = newTeam.name as IUser["team"]; 
+        user.teamTransferTokens -= 1;
+        await user.save();
+        
+        await logActivity('TEAM_JOINED', `${user.name} used a transfer token to move from ${oldTeamName} to ${newTeam.name}`, { userId: user._id, teamId: newTeam._id });
+        
+        return res.status(200).json({ user: sanitizeUser(user), message: 'Successfully transferred to new team!' });
     } catch (error) {
         next(error);
     }

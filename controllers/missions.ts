@@ -12,13 +12,43 @@ import User from '../schemas/users.js';
  */
 export async function getMissionById(req: Request, res: Response) {
     try {
-        const { id }: { id?: Types.ObjectId } = req.params;
+        const { id }: { id?: string | Types.ObjectId } = req.params;
         if (!id) return res.status(400).json({ message: 'Mission ID is required' });
+        
         const mission = await Mission.findById(id);
         if (!mission) {
             return res.status(404).json({ message: 'Mission not found' });
         }
-        return res.status(200).json({ mission: sanitizeMission(mission), message: 'Mission fetched successfully' });
+
+        // 1. Get the current logged in user
+        const userId = (req as Request & { user?: { _id: Types.ObjectId } }).user?._id;
+        let userProgress = null;
+
+        // 2. Look up their progress for this specific mission
+        if (userId) {
+            const user = await User.findById(userId);
+            if (user && user.userMissions) {
+                const um = user.userMissions.find(m => m.missionId.toString() === id.toString());
+                
+                if (um) {
+                    userProgress = {
+                        completed: um.completed,
+                        completedAt: um.completedAt,
+                        taskSubmissions: um.taskSubmissions.map(t => ({
+                            taskId: t.taskId,
+                            status: t.status || (t.graded ? 'approved' : 'pending'),
+                            ...(t.hint ? { hint: t.hint } : {})
+                        }))
+                    };
+                }
+            }
+        }
+
+        return res.status(200).json({ 
+            mission: sanitizeMission(mission), 
+            userProgress, // Sends down the student's progress perfectly!
+            message: 'Mission fetched successfully' 
+        });
     } catch (error) {
         return res.status(500).json({ message: 'Error fetching mission', error });
     }
@@ -55,7 +85,7 @@ export async function createMission(req: Request, res: Response) {
 
         await newMission.save();
 
-        await logActivity('MISSION_PUBLISHED', `New mission published: "${newMission.title}"`);
+        await logActivity('MISSION_PUBLISHED', `New mission published: "${newMission.title}"`, { missionId: newMission._id });
         return res.status(201).json({ message: 'Mission created successfully', mission: sanitizeMission(newMission) });
     } catch (error) {
         console.error('Error creating mission:', error);
@@ -73,7 +103,7 @@ export async function updateMission(req: Request, res: Response) {
             return res.status(404).json({ message: 'Mission not found' });
         }
 
-        logActivity('MISSION_UPDATED', `Mission updated: "${updatedMission.title}"`);
+        logActivity('MISSION_UPDATED', `Mission updated: "${updatedMission.title}"`, { missionId: updatedMission._id });
         return res.status(200).json({ message: 'Mission updated successfully', mission: sanitizeMission(updatedMission) });
     } catch (error) {
         return res.status(500).json({ message: 'Error updating mission', error });
@@ -174,9 +204,16 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
             userMission = user.userMissions[user.userMissions.length - 1]!;
         }
 
-        // 4. Prevent duplicate submissions (No ?. needed anymore!)
-        if (userMission.taskSubmissions.some(sub => sub.taskId === taskId)) {
-            return res.status(400).json({ message: 'You have already submitted this task.' });
+        // 4. Prevent duplicate submissions unless the previous one was rejected
+        const existingSubmissionIndex = userMission.taskSubmissions.findIndex(sub => sub.taskId === taskId);
+        if (existingSubmissionIndex !== -1) {
+            const existingSubmission = userMission.taskSubmissions[existingSubmissionIndex];
+            if (existingSubmission?.status === 'rejected') {
+                // Allow resubmission: remove the old rejected submission
+                userMission.taskSubmissions.splice(existingSubmissionIndex, 1);
+            } else {
+                return res.status(400).json({ message: 'You have already submitted this task.' });
+            }
         }
 
         let pointsEarned = 0;
@@ -213,8 +250,12 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
             taskId: taskId as string,
             answer,
             graded,
+            status: graded ? 'approved' : 'pending',
             pointsEarned
         });
+        
+        // Log individual task submission
+        logActivity('TASK_SUBMITTED', `${user.name} submitted task: ${task.title} for mission: ${mission.title}`, { userId: user._id, missionId: mission._id, teamId: user.teamId || undefined });
 
         // 7. Check if this submission completes the entire mission
         let newlyCompleted = false;
@@ -224,7 +265,7 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
             const requiredTasks = mission.tasks.filter(t => t.isRequired);
             
             const hasCompletedAll = requiredTasks.every(rt => 
-                userMission!.taskSubmissions.some(sub => sub.taskId === rt.id)
+                userMission!.taskSubmissions.some(sub => sub.taskId === rt.id && sub.status !== 'rejected')
             );
 
             if (hasCompletedAll) {
@@ -233,7 +274,7 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
                 newlyCompleted = true;
                 
                 bonusPoints += mission.basePoints;
-                logActivity('MISSION_COMPLETED', `${user.name}, Completed mission: ${mission.title} and earned bonus points! Total bonus: ${bonusPoints}`);
+                logActivity('MISSION_COMPLETED', `${user.name} completed mission: ${mission.title} and earned bonus points! Total bonus: ${bonusPoints}`, { userId: user._id, missionId: mission._id, teamId: user.teamId || undefined });
 
                 const completorsCount = await User.countDocuments({
                     'userMissions': { 
@@ -291,6 +332,7 @@ export const getSubmissionsQueue = async (req: Request, res: Response) => {
                 content: string;
                 score: number;
                 status: string;
+                hint?: string;
             }>;
             createdAt: Date | undefined;
         }> = [];
@@ -317,7 +359,8 @@ export const getSubmissionsQueue = async (req: Request, res: Response) => {
                             taskId: t.taskId,
                             content: t.answer,             
                             score: t.pointsEarned,         
-                            status: t.graded ? 'graded' : 'pending' 
+                            status: t.status || (t.graded ? 'approved' : 'pending'),
+                            ...(t.hint ? { hint: t.hint } : {})
                         })),
                         createdAt: user.createdAt
                     });
@@ -341,7 +384,7 @@ export const getSubmissionsQueue = async (req: Request, res: Response) => {
 export const gradeTaskSubmission = async (req: Request, res: Response) => {
     try {
         const { id: rawId, taskId: rawTaskId } = req.params;
-        const { approved, pointsAwarded } = req.body as { approved: boolean; pointsAwarded: number };
+        const { approved, pointsAwarded, hint } = req.body as { approved: boolean; pointsAwarded: number; hint?: string };
 
         const id = Array.isArray(rawId) ? rawId[0] : rawId;
         const taskId = Array.isArray(rawTaskId) ? rawTaskId[0] : rawTaskId;
@@ -370,26 +413,36 @@ export const gradeTaskSubmission = async (req: Request, res: Response) => {
         
         if (approved) {
             task.graded = true;
+            task.status = 'approved';
             task.pointsEarned = pointsAwarded;
             
             // Add the points to the user's global total!
             user.points = (user.points || 0) + pointsAwarded; 
+            logActivity('TASK_GRADED', `An admin approved task submission for ${user.name}`, { userId: user._id, teamId: user.teamId || undefined, missionId: userMission.missionId });
         } else {
-            // Rejected! Completely delete their submission from the array 
-            // so they have to start over and submit again.
-            userMission.taskSubmissions = userMission.taskSubmissions.filter(
-                (t) => t.taskId !== taskId
-            );
+            // Rejected! Set status and save the hint so the user can see it
+            task.graded = true; // Graded means it's been reviewed
+            task.status = 'rejected';
+            task.hint = hint || 'Your submission did not meet the requirements. Please try again.';
+            task.pointsEarned = 0;
+            logActivity('TASK_GRADED', `An admin rejected task submission for ${user.name}`, { userId: user._id, teamId: user.teamId || undefined, missionId: userMission.missionId });
         }
 
-        // Check if ALL tasks in this mission are now graded
-        const allTasksGraded = userMission.taskSubmissions.every(t => t.graded);
-        if (allTasksGraded) {
+        // Check if ALL tasks in this mission are now graded AND approved
+        // We only mark the entire mission as completed if there are no pending/rejected tasks left
+        const allTasksApproved = userMission.taskSubmissions.every(t => t.status === 'approved' || (t.graded && t.status !== 'rejected'));
+        if (allTasksApproved && userMission.taskSubmissions.length > 0) {
             userMission.completed = true;
             userMission.completedAt = new Date();
             
             // 💰 TRIGGER YOUR LOOT ENGINE HERE! 
             // Base XP, First Blood XP, Team Synergy XP logic goes here
+            
+            const mission = await Mission.findById(missionId);
+            if (mission) {
+                user.points = (user.points || 0) + mission.basePoints;
+                logActivity('MISSION_COMPLETED', `${user.name} completed mission: ${mission.title} after admin grading!`, { userId: user._id, missionId: mission._id, teamId: user.teamId || undefined });
+            }
         }
 
         await user.save();
@@ -398,4 +451,4 @@ export const gradeTaskSubmission = async (req: Request, res: Response) => {
     } catch (error) {
         return res.status(500).json({ message: 'Error grading task', error });
     }
-};
+};;

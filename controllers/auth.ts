@@ -73,7 +73,7 @@ export async function register(req: Request, res: Response, next: NextFunction) 
       path: '/'
     });
 
-    await logActivity('USER_REGISTERED', `New student ${newUser.name} registered`);
+    await logActivity('USER_REGISTERED', `New student ${newUser.name} registered`, { userId: newUser._id });
   return res.status(201).json({ user: userResponse, token, refreshToken, message: 'User registered successfully' });
 
   }
@@ -275,7 +275,7 @@ export async function verifyEmail(req: Request, res: Response, next: NextFunctio
       { verified: true, verificationToken: null }
     );
 
-    await logActivity('ADMIN_ACTION', `${user.name} has verified their email`);
+    await logActivity('ADMIN_ACTION', `${user.name} has verified their email`, { userId: user._id, teamId: user.teamId || undefined });
     return res.status(200).json({ message: 'Email verified successfully' });
   } catch (error) {
     next(error);

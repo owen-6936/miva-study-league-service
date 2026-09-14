@@ -21,6 +21,10 @@ export async function getAnnouncements(req: Request, res: Response){
  * @param req - Express Request object containing title, content, date, and type
  * @param res - Express Response object
  */
+import { logActivity } from '../utils/logger.js';
+import type { IUser } from '../schemas/users.js';
+import type User from '../schemas/users.js';
+
 export async function createAnnouncement(req: Request, res: Response){
     const { title, content, date = new Date().toISOString(), type = 'info' } = req.body;
     // Validate the input data
@@ -29,6 +33,8 @@ export async function createAnnouncement(req: Request, res: Response){
     }
     try {
         const newAnnouncement = await Announcements.create({ title, content, date, type });
+        const admin = (req as Request & { user?: typeof User & IUser }).user;
+        await logActivity('ANNOUNCEMENT_CREATED', `New announcement published: "${title}"`, { userId: admin?._id });
         res.status(201).json({ announcement: sanitizeAnnouncement(newAnnouncement), message: 'Announcement created successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Failed to create announcement', error });

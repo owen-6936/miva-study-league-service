@@ -116,3 +116,33 @@ export const getAdminActivities = async (req: Request, res: Response, next: Next
         next(error);
     }
 };
+
+import { logActivity } from '../utils/logger.js';
+
+/**
+ * Controller to grant a team transfer token to a specific student
+ */
+export const grantTransferToken = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const user = await User.findById(id);
+        
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        user.teamTransferTokens = (user.teamTransferTokens || 0) + 1;
+        await user.save();
+        
+        
+        await logActivity('ADMIN_ACTION', `Granted a team transfer token to ${user.name}`, { 
+            userId: user._id,
+            teamId: user.teamId || undefined 
+        });
+        
+        res.status(200).json({ message: 'Transfer token granted successfully', user });
+    } catch (error) {
+        console.error("Failed to grant transfer token:", error);
+        next(error);
+    }
+};

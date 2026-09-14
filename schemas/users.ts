@@ -26,6 +26,8 @@ export interface IUser {
             taskId: string;     // Matches the task ID from the Mission
             answer: string;     // The URL, the essay text, or the File URL they submitted
             graded: boolean;    // Has the admin reviewed it?
+            status?: 'pending' | 'approved' | 'rejected'; // Status of the submission
+            hint?: string;      // Feedback/hint from the admin if rejected
             pointsEarned: number; 
         }[];
         
@@ -54,11 +56,14 @@ const userSchema = new Schema({
         taskId: { type: String, required: true },
         answer: { type: String, required: true },
         graded: { type: Boolean, default: false },
+        status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+        hint: { type: String, default: '' },
         pointsEarned: { type: Number, default: 0 }
     }],
     completed: { type: Boolean, default: false },
     completedAt: { type: Date || null, default: null }
-  }]
+  }],
+  teamTransferTokens: { type: Number, default: 0 }
 });
 
 const User = model<IUser>('User', userSchema);

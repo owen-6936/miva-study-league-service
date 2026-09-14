@@ -15,6 +15,10 @@ export async function getTimetableEntries(req: Request, res: Response, next: Nex
     }
 }
 
+import { logActivity } from '../utils/logger.js';
+import type { IUser } from '../schemas/users.js';
+import type User from '../schemas/users.js';
+
 /**
  * Controller for creating a new timetable entry.
  */
@@ -23,6 +27,8 @@ export async function createTimetableEntry(req: Request, res: Response, next: Ne
         // Create a new timetable entry in the database
         const newTimetableEntry = new TimetableEntry(req.body);
         const savedTimetableEntry = await newTimetableEntry.save();
+        const admin = (req as Request & { user?: typeof User & IUser }).user;
+        await logActivity('TIMETABLE_UPDATED', `A new timetable entry was created: ${savedTimetableEntry.title}`, { userId: admin?._id });
         res.status(201).json({ message: 'Timetable entry created successfully', timetableEntry: sanitizeTimetableEntry(savedTimetableEntry) });
     } catch (error) {
         next(error);
@@ -43,6 +49,8 @@ export async function updateTimetableEntry(req: Request, res: Response, next: Ne
         if (!updatedTimetableEntry) {
             return res.status(404).json({ message: 'Timetable entry not found' });
         }
+        const admin = (req as Request & { user?: typeof User & IUser }).user;
+        await logActivity('TIMETABLE_UPDATED', `Timetable entry updated: ${updatedTimetableEntry.title}`, { userId: admin?._id });
         res.status(200).json({ message: 'Timetable entry updated successfully', timetableEntry: sanitizeTimetableEntry(updatedTimetableEntry) });
     } catch (error) {
         next(error);
@@ -59,6 +67,8 @@ export async function deleteTimetableEntry(req: Request, res: Response, next: Ne
         if (!deletedTimetableEntry) {
             return res.status(404).json({ message: 'Timetable entry not found' });
         }
+        const admin = (req as Request & { user?: typeof User & IUser }).user;
+        await logActivity('TIMETABLE_UPDATED', `Timetable entry deleted: ${deletedTimetableEntry.title}`, { userId: admin?._id });
         res.status(200).json({ message: 'Timetable entry deleted successfully' });
     } catch (error) {
         next(error);

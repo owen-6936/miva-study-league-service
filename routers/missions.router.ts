@@ -8,7 +8,7 @@ const router: Router = Router();
 
 router.get('/current', authorized, currentMissions);
 router.post('/create', authorized, adminPrivilege, createMission);
-router.put('/update/:id', authorized, adminPrivilege, updateMission);
+router.put('/:id', authorized, adminPrivilege, updateMission);
 router.delete('/delete/:id', authorized, adminPrivilege, deleteMission);
 router.post('/:missionId/tasks/:taskId/submit', authorized, submitTask);
 router.get('/submissions', authorized, adminPrivilege, getSubmissionsQueue);

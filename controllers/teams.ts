@@ -85,7 +85,7 @@ export async function joinTeam(req: Request, res: Response) {
 
         await team.save();
 
-        await logActivity('TEAM_JOINED', `${user.name} joined Team ${team.name}`);
+        await logActivity('TEAM_JOINED', `${user.name} joined Team ${team.name}`, { userId: user._id, teamId: team._id });
         return res.status(200).json({ message: `Successfully joined team ${teamId}` });
     } catch (error) {
         console.error('Error joining team:', error);
