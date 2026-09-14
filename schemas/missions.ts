@@ -1,5 +1,25 @@
 import { model, Schema, Types } from 'mongoose';
 
+// Interface for mission resources (e.g., videos, articles, documents)
+export interface IMissionResource {
+  title: string;
+  type: 'video' | 'audio' | 'article' | 'document';
+  url: string;
+  description?: string;
+}
+
+// Sub-schema for mission resources (e.g., videos, articles, documents)
+const ResourceSchema = new Schema({
+  title: { type: String, required: true },
+  type: { 
+    type: String, 
+    enum: ['video', 'audio', 'article', 'document'], 
+    required: true 
+  },
+  url: { type: String, required: true },
+  description: { type: String }
+}, { _id: false }); // _id: false prevents Mongoose from creating extra IDs for every link
+
 // 1. Sub-interface for Quiz Questions
 export interface IQuizQuestion {
     id: string; 
@@ -29,7 +49,7 @@ export interface IMission {
     storyBrief: string;
     
     // 📚 The Intel
-    resources: string[];
+    resources: IMissionResource[];
     
     // 🎯 The Objectives
     tasks: IMissionTask[];
@@ -74,7 +94,7 @@ const MissionSchema = new Schema({
     title: { type: String, required: true },
     courseId: { type: String, required: true },
     storyBrief: { type: String, required: true },
-    resources: [{ type: String }],
+    resources: [ResourceSchema],
     tasks: [MissionTaskSchema],
     basePoints: { type: Number, required: true, default: 100 },
     firstBloodBonus: { type: Number, required: true, default: 0 },

@@ -22,7 +22,7 @@ import activitiesRouter from './routers/activities.router.js';
 const app: Express = express();
 
 // Set the DNS for the application
-setDNS('Google');
+// setDNS('Google');
 
 // Connect to the database before starting the server
 await connectToDatabase();

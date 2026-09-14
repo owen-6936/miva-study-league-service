@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { getMissions, currentMissions, createMission, deleteMission, submitTask } from '../controllers/missions.js';
+import { getMissions, currentMissions, createMission, deleteMission, submitTask, getMissionById } from '../controllers/missions.js';
 import { adminPrivilege, authenticate, requireVerified } from '../middlewares/auth.js';
 
 const authorized = [authenticate, requireVerified]; 
 
 const router: Router = Router();
 
+router.get('/:id', authorized, getMissionById);
 router.get('/', authorized, getMissions);
 router.get('/current', authorized, currentMissions);
 router.post('/create', authorized, adminPrivilege, createMission);

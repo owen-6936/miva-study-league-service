@@ -8,6 +8,22 @@ import type { IUser } from '../schemas/users.js';
 import User from '../schemas/users.js';
 
 /**
+ * Controller function for fetching a mission by ID.
+ */
+export async function getMissionById(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const mission = await Mission.findById(id);
+        if (!mission) {
+            return res.status(404).json({ message: 'Mission not found' });
+        }
+        return res.status(200).json({ mission: sanitizeMission(mission), message: 'Mission fetched successfully' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error fetching mission', error });
+    }
+}
+
+/**
  * Controller function for fetching all missions.
  */
 export async function getMissions(req: Request, res: Response) {
