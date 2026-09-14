@@ -225,9 +225,9 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
             let parsedAnswers: Record<string, string> = {};
             
             try { 
-                parsedAnswers = JSON.parse(answer); 
+                parsedAnswers = typeof answer === 'string' ? JSON.parse(answer) : answer; 
             } catch (_e) { 
-                // Ignore parse errors, will result in 0 points
+                console.warn('Failed to parse quiz answers:', answer);
             }
 
             let correctCount = 0;
@@ -355,13 +355,15 @@ export const getSubmissionsQueue = async (req: Request, res: Response) => {
                         },
                         missionId: um.missionId, 
                         status: 'pending_review',
-                        taskSubmissions: um.taskSubmissions.map(t => ({
-                            taskId: t.taskId,
-                            content: t.answer,             
-                            score: t.pointsEarned,         
-                            status: t.status || (t.graded ? 'approved' : 'pending'),
-                            ...(t.hint ? { hint: t.hint } : {})
-                        })),
+                        taskSubmissions: um.taskSubmissions
+                            .filter(t => !t.graded || t.status === 'pending')
+                            .map(t => ({
+                                taskId: t.taskId,
+                                content: t.answer,             
+                                score: t.pointsEarned,         
+                                status: t.status || (t.graded ? 'approved' : 'pending'),
+                                ...(t.hint ? { hint: t.hint } : {})
+                            })),
                         createdAt: user.createdAt
                     });
                 }
