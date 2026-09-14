@@ -12,7 +12,8 @@ import User from '../schemas/users.js';
  */
 export async function getMissionById(req: Request, res: Response) {
     try {
-        const { id } = req.params;
+        const { id }: { id?: Types.ObjectId } = req.params;
+        if (!id) return res.status(400).json({ message: 'Mission ID is required' });
         const mission = await Mission.findById(id);
         if (!mission) {
             return res.status(404).json({ message: 'Mission not found' });
@@ -79,7 +80,11 @@ export async function deleteMission(req: Request, res: Response) {
 }
 
 /**
- * Controller function for fetching a user's past and completed missions.
+ * Retrieves missions that the authenticated user participated in but whose global deadlines have passed,
+ * along with missions they have fully completed. This is used for populating the user's mission history dashboard.
+ * 
+ * @param req - Express Request object containing the authenticated user.
+ * @param res - Express Response object.
  */
 export async function pastMissions(req: Request, res: Response) {
     const user = (req as Request & { user: typeof User & IUser }).user; 
@@ -96,6 +101,13 @@ export async function pastMissions(req: Request, res: Response) {
     }
 }
 
+/**
+ * Retrieves all currently active missions (where the deadline is in the future).
+ * This endpoint provides the list of available missions for users to participate in.
+ * 
+ * @param req - Express Request object.
+ * @param res - Express Response object.
+ */
 export async function currentMissions(req: Request, res: Response) {
     try {
         const now = new Date();

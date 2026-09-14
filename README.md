@@ -7,7 +7,8 @@ A backend service for the Miva Study League application, built with Express.js, 
 - **Authentication & Authorization:** Secure user registration, login, token refresh, and email verification using JSON Web Tokens (JWT) and cookies.
 - **User Management:** Profile and statistics management.
 - **Team Management:** Create, update, and manage team members and team scores.
-- **Missions & Activities:** APIs to handle daily/weekly tasks and log user activities.
+- **Missions & Quizzes:** APIs to handle daily/weekly tasks, including text responses, URL submissions, and automated quizzes.
+- **Admin Dashboard:** System-wide statistics and week-over-week trends for monitoring user growth and engagement.
 - **Timetable Management:** Create, view, update, and delete class/study schedules.
 - **Leaderboards & Seasons:** Track team and individual progress across structured seasons.
 - **Email Services:** Integrated with Resend for transactional emails (e.g., email verification).
