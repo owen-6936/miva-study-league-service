@@ -10,6 +10,8 @@ import type { ISeason } from './schemas/seasons.js';
 import Season from './schemas/seasons.js';
 import type { ITimetableEntry } from './schemas/timetable.js';
 import type TimetableEntry from './schemas/timetable.js';
+import type { IAnnouncement } from './schemas/announcements.js';
+import type Announcements from './schemas/announcements.js';
 
 /**
  * Sets the DNS servers to the specified provider.
@@ -157,6 +159,19 @@ function sanitizeTimetableEntry(entry: InstanceType<typeof TimetableEntry> | Ins
     };
 }
 
+function sanitizeAnnouncement(announcement: InstanceType<typeof Announcements> | InstanceType<typeof Announcements>[]): IAnnouncement | IAnnouncement[] {
+    if (Array.isArray(announcement)) {
+        return announcement.map(a => sanitizeAnnouncement(a)) as IAnnouncement[];
+    }
+
+    const { _id, __v, ...safeAnnouncement } = announcement.toObject();
+    
+    return {
+        ...safeAnnouncement,
+        id: _id
+    };
+}
+
 /**
  * Merges a user's mission progress with the full mission data from the database.
  * Injects `studentProgress` into the global mission object so the frontend can render their status.
@@ -202,4 +217,4 @@ function getUserCompletedMissions(user: IUser, allMissions: IMission[]) {
     );
 }
 
-export { setDNS, hashPassword, verifyPassword, generateVerificationCode, sanitizeUser, sanitizeTeam, sanitizeMission, getUserMissions, getUserPastMissions, getUserCompletedMissions, sanitizeSeason, sanitizeTimetableEntry };
+export { setDNS, hashPassword, verifyPassword, generateVerificationCode, sanitizeUser, sanitizeTeam, sanitizeMission, getUserMissions, getUserPastMissions, getUserCompletedMissions, sanitizeSeason, sanitizeTimetableEntry, sanitizeAnnouncement };

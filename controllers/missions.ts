@@ -172,7 +172,7 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
             
             try { 
                 parsedAnswers = JSON.parse(answer); 
-            } catch (e) { 
+            } catch (_e) { 
                 // Ignore parse errors, will result in 0 points
             }
 

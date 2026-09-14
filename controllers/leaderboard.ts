@@ -7,8 +7,8 @@ import { sanitizeTeam, sanitizeUser, type SanitizedTeam, type SanitizedUser } fr
 export async function getLeaderboard(req: Request, res: Response) {
     try {
         // Implement the logic to fetch and return the leaderboard data
-        const teams = await Team.find().sort({ score: -1 });
-        const topUsers = await User.find().sort({ score: -1 }).limit(10);
+        const teams = await Team.find().sort({ points: -1 });
+        const topUsers = await User.find().sort({ points: -1 }).limit(10);
 
         const sanitizedTeams= sanitizeTeam(teams) as SanitizedTeam[];
         const sanitizedTopUsers = sanitizeUser(topUsers) as SanitizedUser[];

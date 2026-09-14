@@ -6,7 +6,7 @@ export const syncTeamPointsMiddleware = async (req: Request, res: Response, next
     try {
         // 1. Extremely fast MongoDB aggregation: group users by Team and sum their points
         const teamScores = await User.aggregate([
-            { $match: { teamId: { $ne: null } } },
+            { $match: { teamId: { $nin: [null, ""] } } },
             { $group: { _id: "$teamId", totalPoints: { $sum: "$points" } } }
         ]);
 
