@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { teams, seedTeams, joinTeam, getTeam, editTeam, createTeam, deleteTeam } from '../controllers/teams.js';
 import { authenticate, requireVerified, adminPrivilege } from '../middlewares/auth.js';
+import { syncTeamPointsMiddleware } from '../middlewares/missions.js';
 const authorize = [authenticate, requireVerified];
 const adminAuthorize = [...authorize, adminPrivilege];
 
 const router: Router = Router();
 
-router.get('/', authorize, teams)
+router.get('/', syncTeamPointsMiddleware, authorize, teams)
 router.get('/:teamId', authorize, getTeam);
 router.post('/seed', adminAuthorize, seedTeams);
 router.post('/:teamId/join', authorize, joinTeam);

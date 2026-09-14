@@ -6,6 +6,7 @@ import type { IUser } from '../schemas/users.js';
 import type { QueryFilter } from 'mongoose';
 import type { ITeam } from '../schemas/teams.js';
 import { teamSeedData } from '../seed/seed_team_data.js';
+import { logActivity } from "../utils/logger.js";
 
 /**
  * Controller function for seeding initial team data.
@@ -84,6 +85,7 @@ export async function joinTeam(req: Request, res: Response) {
 
         await team.save();
 
+        await logActivity('TEAM_JOINED', `${user.name} joined Team ${team.name}`);
         return res.status(200).json({ message: `Successfully joined team ${teamId}` });
     } catch (error) {
         console.error('Error joining team:', error);

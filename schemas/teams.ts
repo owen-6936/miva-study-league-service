@@ -6,7 +6,7 @@ export interface ITeam extends Omit<Document, 'id'> {
   captainId: string; // User ID
   color: string;
   emoji: string;
-  point: number;
+  points: number;
   members: string[]; // Array of user IDs
   maxMembers: number;
 }
@@ -18,7 +18,7 @@ const TeamSchema: Schema = new Schema(
     captainId: { type: String, default: '', ref: 'User' },
     color: { type: String, required: true },
     emoji: { type: String, required: true },
-    point: { type: Number, required: true },
+    points: { type: Number, required: true },
     // Array of user IDs representing team members
     // Validate that the length of the members array does not exceed maxMembers
     members: [{ type: Schema.Types.ObjectId, ref: 'User', required: true, validate: {

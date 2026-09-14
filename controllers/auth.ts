@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import getVerificationEmailTemplate, { verificationEmailFrom, verificationEmailSubject } from '../services/mail/templates/emailVerification.js';
 import { resend } from '../services/mail/resend.js';
+import { logActivity } from '../utils/logger.js';
 
 // 1. Define an interface to avoid repetitive casting
 interface AuthenticatedRequest extends Request {
@@ -72,6 +73,7 @@ export async function register(req: Request, res: Response, next: NextFunction) 
       path: '/'
     });
 
+    await logActivity('USER_REGISTERED', `New student ${newUser.name} registered`);
   return res.status(201).json({ user: userResponse, token, refreshToken, message: 'User registered successfully' });
 
   }
@@ -273,6 +275,7 @@ export async function verifyEmail(req: Request, res: Response, next: NextFunctio
       { verified: true, verificationToken: null }
     );
 
+    await logActivity('ADMIN_ACTION', `${user.name} has verified their email`);
     return res.status(200).json({ message: 'Email verified successfully' });
   } catch (error) {
     next(error);

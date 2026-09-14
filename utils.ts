@@ -88,7 +88,7 @@ function sanitizeUser(user: InstanceType<typeof User> | InstanceType<typeof User
     };
 }
 
-export interface SanitizedTeam extends Pick<InstanceType<typeof Team>, 'name' | 'captainId' | 'color' | 'emoji' | 'point' | 'members' | 'maxMembers'> {
+export interface SanitizedTeam extends Pick<InstanceType<typeof Team>, 'name' | 'captainId' | 'color' | 'emoji' | 'points' | 'members' | 'maxMembers'> {
     id: Types.ObjectId;
 }
 
@@ -158,38 +158,48 @@ function sanitizeTimetableEntry(entry: InstanceType<typeof TimetableEntry> | Ins
 }
 
 /**
- * Merges a user's mission progress (e.g. tasks completed) with the full mission data from the database.
- * Useful for building a comprehensive dashboard view for a user.
- * 
- * @param user - The user document containing their progress array
- * @param pastMissions - The array of all global missions to cross-reference against
+ * Merges a user's mission progress with the full mission data from the database.
+ * Injects `studentProgress` into the global mission object so the frontend can render their status.
  */
-function getUserMissions(user: IUser, pastMissions: IMission[]): (IMission & { tasksCompleted: number })[] {
+function getUserMissions(user: IUser, allMissions: IMission[]) {
     if (!user.userMissions || user.userMissions.length === 0) return [];
 
-    const userFullMissions: (IMission & { tasksCompleted: number })[] = []
-    
-   user.userMissions.forEach(mission => {
-       const fullMission = pastMissions.find(m => (m._id as unknown as Types.ObjectId).equals(mission.missionId));
-       if (fullMission) {
-           userFullMissions.push({ ...fullMission, tasksCompleted: mission.tasksCompleted });
-       }
-   });
-   return userFullMissions;
+    return user.userMissions.map(userMission => {
+        const fullMission = allMissions.find(m => 
+            (m._id as unknown as Types.ObjectId).equals(userMission.missionId)
+        );
+        
+        if (!fullMission) return null;
+
+        return {
+            ...fullMission, // The master blueprint
+            studentProgress: { // Their personal answer sheet
+                completed: userMission.completed,
+                completedAt: userMission.completedAt,
+                taskSubmissions: userMission.taskSubmissions
+            }
+        };
+    }).filter(Boolean); // Strips out any nulls if a mission was deleted from the DB
 }
 
 /**
  * Retrieves missions that the user participated in, but the global deadline has already passed.
  */
-function getUserPastMissions(user: IUser, pastMissions: IMission[]): (IMission & { tasksCompleted: number })[] {
-    return getUserMissions(user, pastMissions).filter(mission => mission.deadline < new Date());
+function getUserPastMissions(user: IUser, allMissions: IMission[]) {
+    return getUserMissions(user, allMissions).filter(mission => 
+        mission && mission.deadline < new Date()
+    );
 }
 
 /**
- * Retrieves missions that the user has fully completed (tasks completed matches total tasks required).
+ * Retrieves missions that the user has fully completed.
  */
-function getUserCompletedMissions(user: IUser, pastMissions: IMission[]): (IMission & { tasksCompleted: number })[] {
-    return getUserMissions(user, pastMissions).filter(mission => mission.tasksCompleted === mission.tasksTotal);
+function getUserCompletedMissions(user: IUser, allMissions: IMission[]) {
+    // Instead of comparing math (which is hard now that tasks are dynamic),
+    // we simply check the boolean flag the backend flipped when they submitted their final task!
+    return getUserMissions(user, allMissions).filter(mission => 
+        mission && mission.studentProgress.completed === true
+    );
 }
 
 export { setDNS, hashPassword, verifyPassword, generateVerificationCode, sanitizeUser, sanitizeTeam, sanitizeMission, getUserMissions, getUserPastMissions, getUserCompletedMissions, sanitizeSeason, sanitizeTimetableEntry };

@@ -1,25 +1,15 @@
-import { Schema, model } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
-// 1. Define the interface for a SINGLE activity
-export interface IActivity {
-    id: string;
-    text: string;
-    type: number;
-    createdAt?: Date;
+export interface IActivity extends Document {
+    type: 'USER_REGISTERED' | 'TEAM_JOINED' | 'MISSION_PUBLISHED' | 'TASK_SUBMITTED' | 'ADMIN_ACTION';
+    message: string;
+    createdAt: Date;
 }
 
-// 2. Define the helper type for an array of activities
-export type IActivities = IActivity[];
-
-// 3. Define the Schema as a SINGLE object (remove the square brackets)
-const ActivitySchema = new Schema<IActivity>({
-    id: { type: String, required: true },
-    text: { type: String, required: true },
-    type: { type: Number, required: true },
+const ActivitySchema = new Schema({
+    type: { type: String, required: true },
+    message: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }
 });
 
-// 4. Create the Model using the single schema
-const Activities = model<IActivity>('Activities', ActivitySchema);
-
-export default Activities;
+export const Activities = mongoose.model<IActivity>('Activity', ActivitySchema);
