@@ -146,3 +146,211 @@ export const grantTransferToken = async (req: Request, res: Response, next: Next
         next(error);
     }
 };
+export const getUserAdminProfile = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        
+        if (user.teamId && user.teamId.toString() !== "") {
+            try {
+                await user.populate('teamId', 'name');
+            } catch (_e) {
+                // Ignore cast errors if teamId is invalid
+                console.warn('Failed to populate teamId:', user.teamId);
+            }
+        }
+        
+        res.status(200).json({ user });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getUserAdminMissions = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const allMissions = await Mission.find();
+        
+        const missions = (user.userMissions || []).map(um => {
+            const missionDoc = allMissions.find(m => m._id?.toString() === um.missionId.toString());
+            if (!missionDoc) return null;
+            
+            return {
+                missionId: um.missionId,
+                missionTitle: missionDoc.title,
+                completed: um.completed,
+                tasks: missionDoc.tasks.map(t => ({
+                    id: t.id,
+                    title: t.title,
+                    points: t.points
+                })),
+                taskSubmissions: um.taskSubmissions
+            };
+        }).filter(Boolean);
+
+        res.status(200).json({ missions });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateUserPoints = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { userId } = req.params;
+        const { totalPoints } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        
+        user.points = totalPoints;
+        await user.save();
+        
+        await logActivity('ADMIN_ACTION', `Admin manually updated points for ${user.name} to ${totalPoints}`, { userId: user._id, teamId: user.teamId || undefined });
+
+        res.status(200).json({ message: 'Points updated successfully', totalPoints: user.points });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const overrideTaskPoints = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { userId, missionId, taskId } = req.params;
+        const { pointsEarned } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const userMission = user.userMissions?.find(um => um.missionId.toString() === missionId);
+        if (!userMission) return res.status(404).json({ message: 'Mission progress not found' });
+
+        const task = userMission.taskSubmissions.find(t => t.taskId === taskId);
+        if (!task) return res.status(404).json({ message: 'Task submission not found' });
+
+        const oldPoints = task.pointsEarned || 0;
+        const pointDifference = pointsEarned - oldPoints;
+
+        task.pointsEarned = pointsEarned;
+        
+        // Mathematically sync global points!
+        user.points = (user.points || 0) + pointDifference;
+
+        user.markModified('userMissions');
+        await user.save();
+        
+        await logActivity('ADMIN_ACTION', `Admin manually updated task points for ${user.name} to ${pointsEarned}`, { userId: user._id, teamId: user.teamId || undefined });
+
+        res.status(200).json({ message: 'Task points overridden successfully', pointsEarned, newTotalPoints: user.points });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateTransferTokens = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { userId } = req.params;
+        const { teamTransferTokens } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        
+        user.teamTransferTokens = teamTransferTokens;
+        await user.save();
+        
+        await logActivity('ADMIN_ACTION', `Admin updated transfer tokens for ${user.name} to ${teamTransferTokens}`, { userId: user._id, teamId: user.teamId || undefined });
+
+        res.status(200).json({ message: 'Tokens updated successfully', teamTransferTokens: user.teamTransferTokens });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const bulkUpdateTokens = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { teamTransferTokens } = req.body;
+
+        await User.updateMany({ role: 'student' }, { $set: { teamTransferTokens } });
+        
+        await logActivity('ADMIN_ACTION', `Admin performed a bulk token reset. All students now have ${teamTransferTokens} tokens.`, {});
+
+        res.status(200).json({ message: 'Bulk token update successful' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getMissionParticipants = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { missionId } = req.params;
+
+        const mission = await Mission.findById(missionId);
+        if (!mission) return res.status(404).json({ message: 'Mission not found' });
+
+        const users = await User.find({ 'userMissions.missionId': missionId as string });
+        
+        for (const user of users) {
+            if (user.teamId && user.teamId.toString() !== "") {
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (user as any).populate('teamId', 'name');
+                } catch (_e) {
+                    console.warn('Failed to populate teamId for user:', user._id);
+                }
+            }
+        }
+
+        const participants = users.map(user => {
+            const um = user.userMissions?.find(m => m.missionId.toString() === missionId);
+            if (!um) return null;
+
+            // Simply sum the actual points they earned from grading their tasks!
+            const score = um.taskSubmissions.reduce((acc, task) => acc + (task.pointsEarned || 0), 0);
+
+            return {
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    team: user.teamId ? (user.teamId as any).name : null,
+                    globalPoints: user.points || 0
+                },
+                completed: um.completed,
+                score,
+                taskSubmissionsCount: um.taskSubmissions.length,
+                completedAt: um.completedAt
+            };
+        }).filter((p): p is NonNullable<typeof p> => p !== null);
+
+        // Sort: First to complete at the top. Those who haven't completed go to the bottom.
+        participants.sort((a, b) => {
+            if (a.completed && b.completed) {
+                // Both completed: sort by earliest completion time
+                const timeA = a.completedAt ? new Date(a.completedAt).getTime() : Infinity;
+                const timeB = b.completedAt ? new Date(b.completedAt).getTime() : Infinity;
+                return timeA - timeB;
+            } else if (a.completed) {
+                return -1; // a comes first
+            } else if (b.completed) {
+                return 1; // b comes first
+            } else {
+                // Neither completed: sort by who has submitted the most tasks, then by name
+                if (b.taskSubmissionsCount !== a.taskSubmissionsCount) {
+                    return b.taskSubmissionsCount - a.taskSubmissionsCount;
+                }
+                return a.user.name.localeCompare(b.user.name);
+            }
+        });
+
+        res.status(200).json({
+            missionName: mission.title,
+            participants
+        });
+    } catch (error) {
+        next(error);
+    }
+};

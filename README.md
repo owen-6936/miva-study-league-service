@@ -10,8 +10,10 @@ A backend service for the Miva Study League application, built with Express.js, 
 - **Missions & Quizzes:** APIs to handle daily/weekly tasks, including text responses, URL submissions, and automated quizzes.
 - **Admin Dashboard:** System-wide statistics and week-over-week trends for monitoring user growth and engagement.
 - **Admin Grading & Submissions:** Dedicated queue for admins to review, accept/reject, and grade manual task submissions, including feedback hints for students. Automatically filters out system-graded tasks.
+- **Admin Student Progress Portal:** Fine-grained API endpoints (`/api/v1/admin/users/:id/progress`) enabling admins to view complete task histories, retroactively edit grades, and globally wipe or sync tokens across entire cohorts.
 - **Auto-Validated Quizzes:** Quizzes and multiple-choice tasks are instantly auto-graded upon submission and seamlessly bypassed from the manual review queue.
 - **Team Transfer Ecosystem:** Admins can grant transfer tokens, allowing students to seamlessly switch teams under strict capacity checks.
+- **Gamification & Analytics:** Includes mathematical First Blood speedrunner bonuses, chronological XP Growth Trajectory analytics for student profiles (`/me/analytics`), and a mathematically flawless Hall of Fame podium (`/awards/hall-of-fame`) dynamically powered by real-time team aggregation.
 - **Activity & Auditing:** Comprehensive, metadata-rich logging system to track student achievements, task updates, and critical admin actions across the platform.
 - **Announcements Management:** Create, view, and delete system-wide broadcast announcements.
 - **Timetable Management:** Create, view, update, and delete class/study schedules.

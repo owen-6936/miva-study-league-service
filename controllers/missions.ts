@@ -3,9 +3,10 @@ import { sanitizeMission } from '../utils.js';
 import { logActivity } from '../utils/logger.js';
 import type { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
-import { getUserPastMissions, getUserCompletedMissions } from '../utils.js';
+import { getUserPastMissions, getUserCompletedMissions, getUserCurrentMissions, injectFirstBlood } from '../utils.js';
 import type { IUser } from '../schemas/users.js';
 import User from '../schemas/users.js';
+import type { IMission } from '../schemas/missions.js';
 
 /**
  * Controller function for fetching a mission by ID.
@@ -142,9 +143,34 @@ export async function pastMissions(req: Request, res: Response) {
         const sanitizedPastMissions = sanitizeMission(pastMissions.filter((mission): mission is NonNullable<typeof mission> => mission !== null));
         const sanitizedCompletedMissions = sanitizeMission(completedMissions.filter((mission): mission is NonNullable<typeof mission> => mission !== null));
 
-        res.status(200).json({pastMissions: sanitizedPastMissions, completedMissions: sanitizedCompletedMissions, message: 'Past & Completed missions fetched successfully'});
+        const finalPastMissions = await injectFirstBlood(sanitizedPastMissions as IMission[]);
+        const finalCompletedMissions = await injectFirstBlood(sanitizedCompletedMissions as IMission[]);
+
+        res.status(200).json({pastMissions: finalPastMissions, completedMissions: finalCompletedMissions, message: 'Past & Completed missions fetched successfully'});
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch past missions', error });
+    }
+}
+
+/**
+ * Retrieves current active missions that the authenticated user is participating in.
+ * 
+ * @param req - Express Request object containing the authenticated user.
+ * @param res - Express Response object.
+ */
+export async function myCurrentMissions(req: Request, res: Response) {
+    const user = (req as Request & { user: typeof User & IUser }).user; 
+    try {
+        const missions = await Mission.find();
+        // Uses the newly added getUserCurrentMissions
+        const currentMissions = getUserCurrentMissions(user, missions);
+        const sanitizedCurrentMissions = sanitizeMission(currentMissions.filter((mission): mission is NonNullable<typeof mission> => mission !== null));
+
+        const finalCurrentMissions = await injectFirstBlood(sanitizedCurrentMissions as IMission[]);
+
+        res.status(200).json({ currentMissions: finalCurrentMissions, message: 'Current missions fetched successfully'});
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch current missions', error });
     }
 }
 
@@ -265,7 +291,7 @@ export const submitTask = async (req: Request, res: Response, next: NextFunction
             const requiredTasks = mission.tasks.filter(t => t.isRequired);
             
             const hasCompletedAll = requiredTasks.every(rt => 
-                userMission!.taskSubmissions.some(sub => sub.taskId === rt.id && sub.status !== 'rejected')
+                userMission!.taskSubmissions.some(sub => sub.taskId === rt.id && sub.status === 'approved')
             );
 
             if (hasCompletedAll) {
@@ -430,18 +456,21 @@ export const gradeTaskSubmission = async (req: Request, res: Response) => {
             logActivity('TASK_GRADED', `An admin rejected task submission for ${user.name}`, { userId: user._id, teamId: user.teamId || undefined, missionId: userMission.missionId });
         }
 
-        // Check if ALL tasks in this mission are now graded AND approved
-        // We only mark the entire mission as completed if there are no pending/rejected tasks left
-        const allTasksApproved = userMission.taskSubmissions.every(t => t.status === 'approved' || (t.graded && t.status !== 'rejected'));
-        if (allTasksApproved && userMission.taskSubmissions.length > 0) {
-            userMission.completed = true;
-            userMission.completedAt = new Date();
+        // We only mark the entire mission as completed if all required tasks are approved
+        const mission = await Mission.findById(missionId);
+        if (mission && !userMission.completed) {
+            const requiredTasks = mission.tasks.filter(t => t.isRequired);
             
-            // 💰 TRIGGER YOUR LOOT ENGINE HERE! 
-            // Base XP, First Blood XP, Team Synergy XP logic goes here
+            const hasCompletedAll = requiredTasks.every(rt => 
+                userMission.taskSubmissions.some(sub => sub.taskId === rt.id && sub.status === 'approved')
+            );
             
-            const mission = await Mission.findById(missionId);
-            if (mission) {
+            if (hasCompletedAll) {
+                userMission.completed = true;
+                userMission.completedAt = new Date();
+                
+                // 💰 TRIGGER YOUR LOOT ENGINE HERE! 
+                // Base XP, First Blood XP, Team Synergy XP logic goes here
                 user.points = (user.points || 0) + mission.basePoints;
                 logActivity('MISSION_COMPLETED', `${user.name} completed mission: ${mission.title} after admin grading!`, { userId: user._id, missionId: mission._id, teamId: user.teamId || undefined });
             }

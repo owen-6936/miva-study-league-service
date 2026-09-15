@@ -1,6 +1,6 @@
 import dns from 'node:dns';
 import bcrypt from 'bcryptjs';
-import type { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import crypto from 'node:crypto';
 import User, { type IUser } from './schemas/users.js';
 import Team from './schemas/teams.js';
@@ -119,7 +119,10 @@ function sanitizeMission(mission: IMission | IMission[]): IMission | IMission[] 
         return mission.map(m => sanitizeMission(m)) as IMission[];
     }
 
-    const { _id, __v, ...safeMission } = (mission as InstanceType<typeof Mission>).toObject();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const obj = typeof (mission as any).toObject === 'function' ? (mission as InstanceType<typeof Mission>).toObject() : mission;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { _id, __v, ...safeMission } = obj as any;
     
     return {
         ...safeMission,
@@ -187,7 +190,8 @@ function getUserMissions(user: IUser, allMissions: IMission[]) {
         if (!fullMission) return null;
 
         return {
-            ...fullMission, // The master blueprint
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ...(typeof (fullMission as any).toObject === 'function' ? (fullMission as any).toObject() : fullMission), // The master blueprint
             studentProgress: { // Their personal answer sheet
                 completed: userMission.completed,
                 completedAt: userMission.completedAt,
@@ -198,11 +202,11 @@ function getUserMissions(user: IUser, allMissions: IMission[]) {
 }
 
 /**
- * Retrieves missions that the user participated in, but the global deadline has already passed.
+ * Retrieves missions that the user participated in, but the global deadline has already passed and they did not complete it.
  */
 function getUserPastMissions(user: IUser, allMissions: IMission[]) {
     return getUserMissions(user, allMissions).filter(mission => 
-        mission && mission.deadline < new Date()
+        mission && mission.deadline < new Date() && mission.studentProgress.completed !== true
     );
 }
 
@@ -217,4 +221,55 @@ function getUserCompletedMissions(user: IUser, allMissions: IMission[]) {
     );
 }
 
-export { setDNS, hashPassword, verifyPassword, generateVerificationCode, sanitizeUser, sanitizeTeam, sanitizeMission, getUserMissions, getUserPastMissions, getUserCompletedMissions, sanitizeSeason, sanitizeTimetableEntry, sanitizeAnnouncement };
+/**
+ * Retrieves missions that the user is currently participating in, the deadline has not passed, and they have not completed it yet.
+ */
+function getUserCurrentMissions(user: IUser, allMissions: IMission[]) {
+    return getUserMissions(user, allMissions).filter(mission => 
+        mission && mission.deadline >= new Date() && mission.studentProgress.completed !== true
+    );
+}
+
+export { setDNS, hashPassword, verifyPassword, generateVerificationCode, sanitizeUser, sanitizeTeam, sanitizeMission, getUserMissions, getUserPastMissions, getUserCompletedMissions, getUserCurrentMissions, sanitizeSeason, sanitizeTimetableEntry, sanitizeAnnouncement };
+export async function injectFirstBlood(missions: IMission[]) {
+    if (!missions || missions.length === 0) return missions;
+    
+    // We map the missions to get their string IDs
+    const missionIds = missions.map(m => new mongoose.Types.ObjectId(m.id as any));
+    
+    // Efficiently aggregate the first completors across all missions simultaneously
+    const firstBloods = await User.aggregate([
+        { $unwind: "$userMissions" },
+        { $match: { "userMissions.missionId": { $in: missionIds }, "userMissions.completed": true } },
+        { $sort: { "userMissions.completedAt": 1 } },
+        { $group: {
+            _id: "$userMissions.missionId",
+            userId: { $first: "$_id" },
+            name: { $first: "$name" },
+            teamId: { $first: "$teamId" },
+            completedAt: { $first: "$userMissions.completedAt" }
+        }},
+        { $lookup: {
+            from: "teams",
+            localField: "teamId",
+            foreignField: "_id",
+            as: "teamDoc"
+        }},
+        { $unwind: { path: "$teamDoc", preserveNullAndEmptyArrays: true } }
+    ]);
+
+    const firstBloodMap = new Map();
+    for (const fb of firstBloods) {
+        firstBloodMap.set(fb._id.toString(), {
+            userId: fb.userId,
+            name: fb.name,
+            team: fb.teamDoc ? fb.teamDoc.name : null,
+            completedAt: fb.completedAt
+        });
+    }
+
+    return missions.map(m => {
+        const fb = firstBloodMap.get(m.id?.toString());
+        return fb ? { ...m, firstBlood: fb } : m;
+    });
+}
