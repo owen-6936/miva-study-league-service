@@ -354,3 +354,39 @@ export const getMissionParticipants = async (req: Request, res: Response, next: 
         next(error);
     }
 };
+
+export const toggleCaptainStatus = async (req: Request, res: Response) => {
+    try {
+        const { isCaptain } = req.body;
+        
+        const user = await User.findByIdAndUpdate(
+            req.params.id, 
+            { isCaptain }, 
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Sync with the Team document
+        if (user.teamId) {
+            if (isCaptain) {
+                // Set this user as the captain of their team
+                await Team.findByIdAndUpdate(user.teamId, { captainId: user._id.toString() });
+            } else {
+                // If they are no longer captain, check if they were the current captain and remove them
+                const team = await Team.findById(user.teamId);
+                if (team && team.captainId === user._id.toString()) {
+                    team.captainId = '';
+                    await team.save();
+                }
+            }
+        }
+        
+        res.status(200).json({ success: true, user });
+    } catch (error) {
+        console.error('Error toggling captain status:', error);
+        res.status(500).json({ message: 'Error toggling captain status' });
+    }
+};

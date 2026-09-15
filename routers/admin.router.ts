@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAdminStats, getAdminActivities, grantTransferToken, getUserAdminProfile, getUserAdminMissions, updateUserPoints, overrideTaskPoints, updateTransferTokens, bulkUpdateTokens, getMissionParticipants } from '../controllers/admin.js';
+import { getAdminStats, getAdminActivities, grantTransferToken, getUserAdminProfile, getUserAdminMissions, updateUserPoints, overrideTaskPoints, updateTransferTokens, bulkUpdateTokens, getMissionParticipants, toggleCaptainStatus } from '../controllers/admin.js';
 import { adminPrivilege, authenticate, requireVerified } from '../middlewares/auth.js';
 const adminAuthorized  = [authenticate, requireVerified, adminPrivilege]
 
@@ -14,5 +14,6 @@ router.patch('/users/:userId/missions/:missionId/tasks/:taskId', adminAuthorized
 router.patch('/users/:userId/tokens', adminAuthorized, updateTransferTokens);
 router.post('/users/bulk-tokens', adminAuthorized, bulkUpdateTokens);
 router.get('/missions/:missionId/participants', adminAuthorized, getMissionParticipants);
+router.patch('/users/:id/captain', adminAuthorized, toggleCaptainStatus);
 
 export default router;

@@ -35,6 +35,7 @@ export interface IUser {
         completedAt?: Date | null;      // Useful to check if they get the "First Blood" speed bonus!
     }[];
     teamTransferTokens?: number;
+    isCaptain?: boolean;
 }
 
 const userSchema = new Schema({
@@ -63,7 +64,8 @@ const userSchema = new Schema({
     completed: { type: Boolean, default: false },
     completedAt: { type: Date || null, default: null }
   }],
-  teamTransferTokens: { type: Number, default: 0 }
+  teamTransferTokens: { type: Number, default: 0 },
+  isCaptain: { type: Boolean, default: false }
 });
 
 const User = model<IUser>('User', userSchema);

@@ -115,6 +115,7 @@ export async function transferTeam(req: Request, res: Response, next: NextFuncti
         user.teamId = newTeam._id;
         user.team = newTeam.name as IUser["team"]; 
         user.teamTransferTokens -= 1;
+        user.isCaptain = false; // Strip them of captaincy when they defect to another team!
         await user.save();
         
         await logActivity('TEAM_JOINED', `${user.name} used a transfer token to move from ${oldTeamName} to ${newTeam.name}`, { userId: user._id, teamId: newTeam._id });
