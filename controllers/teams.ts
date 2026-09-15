@@ -26,7 +26,23 @@ export async function seedTeams(req: Request, res: Response) {
  */
 export async function teams(req: Request, res: Response) {
     try {
-        const teams = await Team.find().populate('members', '_id name email role');
+        const teams = await Team.find().populate('members', '_id name email role isCaptain');
+        
+        // Safely populate captainId to prevent CastErrors from empty strings
+        for (const team of teams) {
+            if (team.captainId && team.captainId !== '') {
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    await (team as any).populate('captainId', '_id name email role isCaptain');
+                } catch (e) {
+                    console.warn(`Failed to populate captainId for ${team.name}`);
+                }
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                team.captainId = null as any;
+            }
+        }
+        
         const sanitizedTeams = teams.map(team => sanitizeTeam(team));
         return res.status(200).json({ teams: sanitizedTeams, message: 'Teams retrieved successfully' });
     } catch (_error) {
@@ -42,9 +58,23 @@ export async function getTeam(req: Request, res: Response) {
         const { teamId } = req.params;
         if (!teamId || typeof teamId !== 'string' || teamId.trim() === '') return res.status(400).json({ message: 'Team ID is required' });
 
-        const team = await Team.findOne({ _id: teamId } as QueryFilter<ITeam>).populate('members', '_id name email role');
+        const team = await Team.findOne({ _id: teamId } as QueryFilter<ITeam>)
+            .populate('members', '_id name email role isCaptain');
+
         if (!team) {
             return res.status(404).json({ message: 'Team not found' });
+        }
+
+        if (team.captainId && team.captainId !== '') {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (team as any).populate('captainId', '_id name email role isCaptain');
+            } catch (e) {
+                console.warn(`Failed to populate captainId for ${team.name}`);
+            }
+        } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            team.captainId = null as any;
         }
 
         const sanitizedTeam = sanitizeTeam(team);

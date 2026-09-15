@@ -67,7 +67,7 @@ function generateVerificationCode() {
   return code.toString();
 }
 
-export interface SanitizedUser extends  Pick<InstanceType<typeof User>, 'name' | 'email' | 'verified' | 'role' | 'matricNumber' | 'team' | 'teamId' | 'createdAt'> {
+export interface SanitizedUser extends  Pick<InstanceType<typeof User>, 'name' | 'email' | 'verified' | 'role' | 'matricNumber' | 'team' | 'teamId' | 'createdAt' | 'isCaptain'> {
     id: Types.ObjectId;
 }
 /**
